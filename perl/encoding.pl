@@ -1,6 +1,8 @@
 #!/usr/bin/perl
 use strict;
 use bytes;
+use bigint;
+use Crypt::Mode::ECB;
 use MIME::Base64;
 
 sub fromHex { return pack('H*', $_[0]) }
@@ -119,11 +121,32 @@ sub transposed_chunks {
     return @transposes;
 }
 
+sub decrypt_ECB_AES {
+    my ($input) = @_;
+    my $m = Crypt::Mode::ECB->new('AES');
+    return $m->decrypt($input, 'YELLOW SUBMARINE');
+}
+
+sub duplicate_blocks {
+    my ($input, $block_size) = @_;
+    my @blocks = unpack("(a$block_size)*", $input);
+    my %unique_blocks = ();
+    for (@blocks) {
+        $unique_blocks{$_} += 1;
+    }
+    return length(@blocks) - length(keys(%unique_blocks));
+}
+
+sub detect_ecb {
+    my %duplicate_counts;
+    @duplicate_counts{@_} = map duplicate_blocks(fromHex($_), 16), @_;
+    my @sorted = sort { $duplicate_counts{$b} <=> $duplicate_counts{$a} } @_;
+    return $sorted[0];
+}
+
 my @lines = <STDIN>;
-my $base64 = join('', @lines);
-my $input = decode_base64($base64);
-my $key = break_repeating_xor($input);
-print "$key\n";
+my $ecb_line = detect_ecb(@lines);
+print "$ecb_line\n";
 
 sub get_character_frequency_map_english {
     my %freq_map = (
