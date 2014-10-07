@@ -51,9 +51,6 @@ sub find_single_char_xor_cipher {
         if ($score > $best_score) {
             ($best_score, $best_input, $best_output) = ($score, $_, $output);
         }
-        if ($score > 50) {
-            print "score: $score, output: $output\n";
-        }
     }
     return ($best_input, $best_output);
 }
@@ -77,16 +74,14 @@ sub find_keysizes {
     for (2 .. 40) {
         my $chunk1 = substr($input, 0, $_);
         my $chunk2 = substr($input, $_, $_);
-        #my $chunk3 = substr($input, 2 * $_, $_);
-        #my $chunk4 = substr($input, 3 * $_, $_);
+        my $chunk3 = substr($input, 2 * $_, $_);
+        my $chunk4 = substr($input, 3 * $_, $_);
 
         my $dist_a = edit_distance($chunk1, $chunk2);
-        print "key: $_, raw distance: $dist_a\n";
-        #my $dist_b = edit_distance($chunk3, $chunk4);
+        my $dist_b = edit_distance($chunk3, $chunk4);
 
-        #my $distance = ($dist_a + $dist_b) / (2 * $_);
-        #$distances{$_} = $distance;
-        $distances{$_} = (edit_distance($chunk1, $chunk2) / $_);
+        my $distance = ($dist_a + $dist_b + 10) / (2 * $_);
+        $distances{$_} = $distance;
     }
 
     return sort { $distances{$a} cmp $distances{$b} } 2 .. 40;
@@ -95,34 +90,24 @@ sub find_keysizes {
 sub break_repeating_xor {
     my ($input) = @_;
     my @keysizes = find_keysizes($input);
+    my %results = ();
 
     for my $keysize (@keysizes[0..2]) {
-        #my @chunks = chunkify($input, $keysize);
-        #my @transposes = transpose_chunks(@chunks);
         my @transposes = transposed_chunks($input, $keysize);
  
         my $full_key = '';
+        my $score_sum = 0;
         for (@transposes) {
-            my (undef, $key, undef) = decrypt_single_char_xor_cipher($_);
+            my ($score, $key, undef) = decrypt_single_char_xor_cipher($_);
             $full_key = $full_key . $key;
+            $score_sum += $score;
         }
-        return $full_key if $full_key;
+        my $final_score = $score_sum / $keysize;
+        $results{$full_key} = $final_score if $full_key && $final_score > 0;
     }
-}
 
-sub chunkify {
-    my ($input, $chunk_size) = @_;
-    return unpack( "(a$chunk_size)*", $input);
-}
-
-sub transpose_chunks {
-    my @transposes = ('') x length $_[0];
-    for my $chunk (@_) {
-        for (0 .. length $chunk) {
-            $transposes[$_] = $transposes[$_] . substr($chunk, $_, 1);
-        }
-    }
-    return @transposes;
+    my @top_keys = sort { $results{$b} <=> $results{$a} } keys(%results);
+    return $top_keys[0];
 }
 
 sub transposed_chunks {
@@ -134,23 +119,11 @@ sub transposed_chunks {
     return @transposes;
 }
 
-#my @lines = <STDIN>;
-#my $base64 = join('', @lines);
-#my $input = decode_base64($base64);
-#my $key = break_repeating_xor($input);
-#print "key: $key\n";
-my $decrypt = repeat_key_encrypt("ICE", $ARGV[0]);
-my $hex = toHex($decrypt);
-print "$hex\n";
-my $broken_key = break_repeating_xor($decrypt);
-#print "$broken_key\n";
-
-#my ($input) = @ARGV;
-#my @chunks = chunkify($input, 3);
-#print "@chunks\n";
-#my $unhexed = fromHex($input);
-#my ($score, $key, $result) = decrypt_single_char_xor_cipher($unhexed);
-#print "key: $key, value: $result\n";
+my @lines = <STDIN>;
+my $base64 = join('', @lines);
+my $input = decode_base64($base64);
+my $key = break_repeating_xor($input);
+print "$key\n";
 
 sub get_character_frequency_map_english {
     my %freq_map = (
