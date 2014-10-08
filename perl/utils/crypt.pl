@@ -1,7 +1,23 @@
 use strict;
 use Crypt::OpenSSL::AES;
 
-require 'pkcs_7_pad.pl';
+require '../utils/pkcs_7_pad.pl';
+
+sub ecb_encrypt { return _ecb_crypt('true', @_) }
+sub ecb_decrypt { return _ecb_crypt(0, @_) }
+
+sub _ecb_crypt {
+    my ($en, $key, $input) = @_;
+    my $block_size = 16;
+    $input = pkcs_7_pad($input, $block_size);
+    my $m = new Crypt::OpenSSL::AES($key);
+    my $output = '';
+    for (my $i = 0; $i < length($input); $i += $block_size) {
+        my $next_block = substr($input, $i, $block_size);
+        $output .= $en ? $m->encrypt($next_block) : $m->decrypt($next_block);
+    }
+    return $output;
+}
 
 sub cbc_encrypt {
     my ($key, $input) = @_;

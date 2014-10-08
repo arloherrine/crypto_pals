@@ -2,7 +2,7 @@
 use strict;
 use MIME::Base64;
 
-require 'cbc_crypt.pl';
+require '../utils/crypt.pl';
 
 my $key = 'YELLOW SUBMARINE';
 my $input = decode_base64(join('', <STDIN>));
