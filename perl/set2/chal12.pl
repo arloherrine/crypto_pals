@@ -23,19 +23,18 @@ sub decrypt_unknown_string {
 
     my $unknown_string = '';
     for my $block_index (0 .. int($unknown_string_size / $block_size)) {
-        for my $i (1 .. $block_size) {
+        for my $i (reverse 0 .. ($block_size - 1)) {
             my %dict_of_evil = ();
             for (0 .. (2**8 - 1)) {
-                my $output = random_crypt(('A' x ($block_size - $i)) . $unknown_string . chr($_));
+                my $output = random_crypt(('A' x $i) . $unknown_string . chr($_));
                 $dict_of_evil{substr($output, $block_index * $block_size, $block_size)} = chr($_);
             }
-            my $output = random_crypt('A' x ($block_size - $i));
+            my $output = random_crypt('A' x $i);
             $unknown_string .= $dict_of_evil{substr($output, $block_index * $block_size, $block_size)};
             if (length($unknown_string) >= $unknown_string_size) {
                 return $unknown_string;
             }
         }
-        $block_index++;
     }
     return $unknown_string;
 }
