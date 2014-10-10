@@ -19,9 +19,6 @@ our $secret_key = random_key();
 
 sub encrypted_token {
     my $token = $tokens[int(rand(scalar(@tokens)))];
-    $" = ' ';
-    my @chunkers = unpack('(H32)*', $token);
-    print "cheating token: @chunkers\n";
     my $iv = "\x00" x 16;
     return (cbc_encrypt($secret_key, $token, $iv), $iv);
 }
@@ -31,7 +28,6 @@ sub valid_token {
     my $token = cbc_decrypt($secret_key, $encrypted);
     eval {
         validate_strip_pkcs7($token);
-        print "valid token hex: " . unpack('H*', $token) . "\n";
         return 1;
     } or do {
         return 0;
@@ -41,7 +37,6 @@ sub valid_token {
 sub decrypt_token {
     my ($encrypted, $iv) = encrypted_token();
     my @blocks = unpack('(a16)*', $encrypted);
-    #print "num blocks: " . scalar(@blocks) . ", should be " . length($encrypted) / 16 . "\n";
     my $decrypted = '';
     my $prev_block = $iv;
     for (@blocks) {
@@ -49,43 +44,30 @@ sub decrypt_token {
         $prev_block = $_;
     }
     
-    $" = ' ';
-    my @chunkers = unpack('(H32)*', $decrypted);
-    print "decryptd token: @chunkers\n";
-    return validate_strip_pkcs7($decrypted);
+    eval {
+        return validate_strip_pkcs7($decrypted);
+    } or do {
+        return $decrypted;
+    }
 }
 
 sub decrypt_token_block {
-    my ($prev, $en_block) = @_;
-    print "decrypting block: " . unpack('H*', $en_block) . "\n";
-    print "block size: " . length($en_block) . "\n";
-    #print "with prefx block: " . unpack('H*', $prev) . "\n";
-    my $de_block = '';
-    for my $pos (1 .. 16) {
-        my $prev_xor_prefix = "\x00" x (16 - $pos);
-        my $prev_xor_suffix = $de_block ^ (chr($pos) x ($pos - 1));
-        for my $byte (0 .. 0xff) {
-            if (valid_token(($prev ^ ($prev_xor_prefix . chr($byte) . $prev_xor_suffix)) . $en_block)) {
-                $de_block = chr($byte ^ $pos) . $de_block;
-                #print "adding: " . ($byte ^ $pos) . "\n";
-                last;
+    my ($prev, $en_block, $de_block, $pos) = @_;
+    my $prev_xor_prefix = "\x00" x (15 - $pos);
+    my $prev_xor_suffix = $de_block ^ (chr($pos + 1) x $pos);
+    for my $byte (0 .. 0xff) {
+        if (valid_token(($prev ^ ($prev_xor_prefix . chr($byte) . $prev_xor_suffix)) . $en_block)) {
+            my $new_de_block = chr($byte ^ ($pos + 1)) . $de_block;
+            if ($pos == 15) {
+                return $new_de_block;
+            } else {
+                my $possible =  decrypt_token_block($prev, $en_block, $new_de_block, $pos + 1);
+                return $possible if $possible;
             }
         }
     }
-    return $de_block;
 }
 
 my $result = decrypt_token();
-#print "decrypted token: $result\n";
-#validate_strip_pkcs7("\x10" x 16);
-#print "valid\n";
-
-#sub last_byte_mask {
-#    my ($cipher) = @_;
-#    my $pre_len = length($cipher) - 17;
-#    my ($pre, $target, $suf) = unpack("($pre_len)(a)(a16)", $cipher);
-#    for (0 .. 0xFF) {
-#        return chr($_) if valid_token($pre . ($target ^ chr($_)) . $suf);
-#    }
-#}
+print "$result\n";
 
