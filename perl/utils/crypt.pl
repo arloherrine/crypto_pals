@@ -3,6 +3,13 @@ use Crypt::OpenSSL::AES;
 
 require '../utils/pkcs_7_pad.pl';
 
+sub random_key {
+    my ($length) = @_;
+    $length = 16 unless $length;
+    return join('', map chr(int(rand(2**8))), 1 .. 16);
+}
+
+
 sub ecb_encrypt { return _ecb_crypt('true', @_) }
 sub ecb_decrypt { return _ecb_crypt(0, @_) }
 
@@ -20,22 +27,22 @@ sub _ecb_crypt {
 }
 
 sub cbc_encrypt {
-    my ($key, $input) = @_;
+    my ($key, $input, $iv) = @_;
     return _cbc_crypt('true', $key, $input);
 }
 
 sub cbc_decrypt {
-    my ($key, $input) = @_;
+    my ($key, $input, $iv) = @_;
     return _cbc_crypt(0, $key, $input);
 }
 
 sub _cbc_crypt {
-    my ($en, $key, $input) = @_;
+    my ($en, $key, $input, $iv) = @_;
     my $block_size = 16;
     $input = pkcs_7_pad($input, $block_size);
     my $m = new Crypt::OpenSSL::AES($key);
 
-    my $last_cipher = chr(0) x $block_size;
+    my $last_cipher = $iv or chr(0) x $block_size;
     my $output = '';
     for (my $i = 0; $i < length($input); $i += $block_size) {
         my $next_block = substr($input, $i, $block_size);
