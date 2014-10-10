@@ -9,6 +9,24 @@ sub random_key {
     return join('', map chr(int(rand(2**8))), 1 .. 16);
 }
 
+sub ctr_crypt {
+    my ($key, $input, $nonce) = @_;
+    my $keystream = '';
+    my $counter;
+    my $output = '';
+    my $m = new Crypt::OpenSSL::AES($key);
+    for (0 .. (length($input) - 1)) {
+    #for (unpack('(a)*', $input)) {
+        unless ($keystream) {
+            my $to_crypt = pack('Q', $nonce) . pack('Q', $counter++);
+            $keystream = $m->encrypt($to_crypt);
+        }
+        my $key_char = substr($keystream, 0, 1);
+        substr($keystream, 0, 1) = '';
+        $output .= substr($input, $_, 1) ^ $key_char;
+    }
+    return $output;
+}
 
 sub ecb_encrypt { return _ecb_crypt('true', @_) }
 sub ecb_decrypt { return _ecb_crypt(0, @_) }
