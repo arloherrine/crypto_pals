@@ -10,19 +10,23 @@ sub random_key {
 }
 
 sub ctr_crypt {
-    my ($key, $input, $nonce) = @_;
+    my ($key, $input, $nonce, @range) = @_;
+    if ($nonce =~ /^\d+$/) {
+        unshift @range, $nonce;
+        undef $nonce;
+    }
+    @range = (0 .. (length($input) - 1)) unless @range;
     my $keystream = '';
-    my $counter;
+    my $keystream_index = -1;
     my $output = '';
     my $m = new Crypt::OpenSSL::AES($key);
-    for (0 .. (length($input) - 1)) {
-    #for (unpack('(a)*', $input)) {
-        unless ($keystream) {
-            my $to_crypt = pack('Q', $nonce) . pack('Q', $counter++);
+    for (@range) {
+        unless ((my $index = int($_)/int(16)) == $keystream_index) {
+            $keystream_index = $index;
+            my $to_crypt = pack('Q', $nonce) . pack('Q', $index);
             $keystream = $m->encrypt($to_crypt);
         }
-        my $key_char = substr($keystream, 0, 1);
-        substr($keystream, 0, 1) = '';
+        my $key_char = substr($keystream, $_ % 16, 1);
         $output .= substr($input, $_, 1) ^ $key_char;
     }
     return $output;
@@ -46,12 +50,12 @@ sub _ecb_crypt {
 
 sub cbc_encrypt {
     my ($key, $input, $iv) = @_;
-    return _cbc_crypt('true', $key, $input);
+    return _cbc_crypt('true', $key, $input, $iv);
 }
 
 sub cbc_decrypt {
     my ($key, $input, $iv) = @_;
-    return _cbc_crypt(0, $key, $input);
+    return _cbc_crypt(0, $key, $input, $iv);
 }
 
 sub _cbc_crypt {
